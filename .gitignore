@@ -1,0 +1,4 @@
+venv/
+__pycache__/
+.env
+phantom_scan.png
