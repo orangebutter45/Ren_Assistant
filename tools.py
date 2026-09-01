@@ -3,112 +3,126 @@ import subprocess
 import webbrowser
 import psutil
 import pyautogui
-import random
-import urllib.parse
+import pywhatkit
+import speech_recognition as sr
+import pyttsx3
 
-def abrir_herramienta(nombre: str) -> str:
-    """Abre aplicaciones y herramientas locales en la computadora como Apple Music, Chrome, Bloc de notas, etc."""
-    nombre_lower = nombre.lower()
+# Inicializar motor de voz local básico (fallback)
+motor_voz = None
+try:
+    motor_voz = pyttsx3.init()
+    motor_voz.setProperty("rate", 165)
+except Exception:
+    pass
+
+def decir(texto: str):
+    """Emite voz mediante el motor local actual."""
+    if not texto:
+        return
     try:
-        if "apple" in nombre_lower or "música" in nombre_lower or "musica" in nombre_lower:
-            try:
-                subprocess.Popen(["cmd", "/c", "start", "AppleMusic.exe"])
-            except Exception:
-                subprocess.Popen(["cmd", "/c", "start", "https://music.apple.com"])
-            return "Frecuencia musical sincronizada. Apple Music en ejecución."
-        elif "chrome" in nombre_lower or "navegador" in nombre_lower:
+        if motor_voz:
+            motor_voz.say(texto)
+            motor_voz.runAndWait()
+    except Exception as e:
+        print(f"[Error de Voz]: {str(e)}")
+
+def escuchar_microfono() -> str:
+    """Captura audio desde el micrófono del equipo y lo convierte a texto."""
+    reconocedor = sr.Recognizer()
+    with sr.Microphone() as fuente:
+        print("\n[Escuchando...] Habla ahora:")
+        reconocedor.adjust_for_ambient_noise(fuente, duration=0.6)
+        try:
+            audio = reconocedor.listen(fuente, timeout=5, phrase_time_limit=8)
+            texto = reconocedor.recognize_google(audio, language="es-ES")
+            print(f"Tú (Voz): {texto}")
+            return texto
+        except sr.WaitTimeoutError:
+            return ""
+        except sr.UnknownValueError:
+            print("[Sistema]: No se detectó audio claro.")
+            return ""
+        except Exception as e:
+            print(f"[Error Micrófono]: {str(e)}")
+            return ""
+
+def abrir_herramienta(nombre_app: str) -> str:
+    """Abre aplicaciones comunes en Windows."""
+    nombre_app = nombre_app.lower()
+    try:
+        if "chrome" in nombre_app:
             subprocess.Popen("start chrome", shell=True)
-            return "Navegador Chrome desplegado en pantalla."
-        elif "notepad" in nombre_lower or "notas" in nombre_lower:
-            subprocess.Popen("notepad")
-            return "Bloc de notas abierto para apuntes rápidos."
-        elif "code" in nombre_lower or "vs" in nombre_lower:
+            return "Google Chrome abierto."
+        elif "notepad" in nombre_app or "bloc" in nombre_app:
+            subprocess.Popen("notepad.exe")
+            return "Bloc de notas abierto."
+        elif "code" in nombre_app or "vs" in nombre_app:
             subprocess.Popen("code", shell=True)
-            return "Entorno de desarrollo Visual Studio Code listo."
+            return "Visual Studio Code abierto."
+        elif "apple" in nombre_app:
+            subprocess.Popen("start itunes:", shell=True)
+            return "Apple Music / iTunes solicitado."
         else:
-            subprocess.Popen(f"start {nombre}", shell=True)
-            return f"Ejecutando comando del sistema para {nombre}..."
+            subprocess.Popen(f"start {nombre_app}", shell=True)
+            return f"Ejecutando {nombre_app}."
     except Exception as e:
-        return f"Interferencia al abrir la herramienta: {str(e)}"
-
-def capturar_pantalla() -> str:
-    """Toma una captura de la pantalla táctica y la guarda en el Escritorio."""
-    try:
-        ruta = os.path.join(os.path.expanduser("~"), "Desktop", "phantom_scan.png")
-        screenshot = pyautogui.screenshot()
-        screenshot.save(ruta)
-        return f"Reconocimiento visual completado. Captura guardada en: {ruta}"
-    except Exception as e:
-        return f"Falla en el escaneo de pantalla: {str(e)}"
+        return f"Error al abrir {nombre_app}: {str(e)}"
 
 def control_multimedia(accion: str) -> str:
-    """Controla la reproducción multimedia y volumen del sistema (pausar, reproducir, subir_volumen, bajar_volumen, silenciar)."""
-    accion_lower = accion.lower()
+    """Controla la reproducción de música y el volumen general del sistema."""
+    accion = accion.lower()
     try:
-        if "pausar" in accion_lower or "play" in accion_lower or "reproducir" in accion_lower or "reanudar" in accion_lower:
+        if "pausar" in accion or "play" in accion:
             pyautogui.press("playpause")
-            return "Comando multimedia enviado: Reproducir/Pausar."
-        elif "subir" in accion_lower:
+            return "Reproducción alternada."
+        elif "subir" in accion:
             for _ in range(5):
                 pyautogui.press("volumeup")
-            return "Nivel de audio incrementado."
-        elif "bajar" in accion_lower:
+            return "Volumen aumentado."
+        elif "bajar" in accion:
             for _ in range(5):
                 pyautogui.press("volumedown")
-            return "Nivel de audio reducido."
-        elif "silenciar" in accion_lower or "mute" in accion_lower:
+            return "Volumen reducido."
+        elif "silenciar" in accion:
             pyautogui.press("volumemute")
             return "Audio silenciado."
-        else:
-            return "Acción multimedia no reconocida."
+        return "Comando multimedia no reconocido."
     except Exception as e:
-        return f"Error en el control de medios: {str(e)}"
+        return f"Error en control multimedia: {str(e)}"
+
+def reproducir_cancion_especifica(cancion: str) -> str:
+    """Busca y reproduce una pista en YouTube."""
+    try:
+        pywhatkit.playonyt(cancion)
+        return f"Reproduciendo {cancion} en YouTube."
+    except Exception as e:
+        return f"Error al reproducir: {str(e)}"
 
 def buscar_en_la_red(consulta: str) -> str:
-    """Abre el navegador y realiza una búsqueda directa sobre el tema solicitado."""
+    """Abre una búsqueda en el navegador predeterminado."""
     try:
-        url = f"https://www.google.com/search?q={consulta.replace(' ', '+')}"
+        url = f"https://www.google.com/search?q={consulta}"
         webbrowser.open(url)
-        return f"Búsqueda desplegada en la red sobre: '{consulta}'."
+        return f"Buscando '{consulta}' en la web."
     except Exception as e:
-        return f"Error al acceder a la red: {str(e)}"
+        return f"Error en búsqueda: {str(e)}"
 
 def estado_del_sistema() -> str:
-    """Realiza un diagnóstico de telemetría de hardware: uso de CPU, memoria RAM y estado de batería."""
+    """Reporta telemetría de hardware (CPU, RAM y Batería)."""
     try:
         cpu = psutil.cpu_percent(interval=0.5)
         ram = psutil.virtual_memory()
         bateria = psutil.sensors_battery()
         
-        info_bateria = f"{bateria.percent}% {'(Cargando)' if bateria.power_plugged else '(Batería)'}" if bateria else "Sin sensor de batería detectado"
-        
+        estado_bat = "Sin batería detectada (PC de escritorio/CA)"
+        if bateria:
+            estado_bat = f"{bateria.percent}% {'(Cargando)' if bateria.power_plugged else '(Descargando)'}"
+            
         return (
-            f"Diagnóstico de hardware completado:\n"
-            f"- Carga de CPU: {cpu}%\n"
-            f"- Memoria RAM en uso: {ram.percent}% ({round(ram.used / (1024**3), 1)} GB / {round(ram.total / (1024**3), 1)} GB)\n"
-            f"- Estado de energía: {info_bateria}"
+            f"CPU: {cpu}%\n"
+            f"RAM: {ram.percent}% ({ram.used // (1024**2)} MB / {ram.total // (1024**2)} MB)\n"
+            f"Batería: {estado_bat}"
         )
     except Exception as e:
-        return f"Falla en el diagnóstico del sistema: {str(e)}"
-
-
-def reproducir_musica_aleatoria() -> str:
-    """Inicia la reproducción o activa el modo aleatorio de música en el reproductor."""
-    try:
-        # Envía la pulsación multimedia Play/Pause y cambia de pista
-        pyautogui.press("playpause")
-        return "Iniciando reproducción musical aleatoria."
-    except Exception as e:
-        return f"Interferencia al reproducir música: {str(e)}"
-
-def reproducir_cancion_especifica(cancion: str, artista: str = "") -> str:
-    """Busca y reproduce una canción o artista específico en Apple Music / Web Player."""
-    try:
-        busqueda = f"{cancion} {artista}".strip()
-        query_encoded = urllib.parse.quote(busqueda)
-        # Abre la búsqueda directa en el ecosistema de Apple Music
-        url_apple = f"https://music.apple.com/search?term={query_encoded}"
-        webbrowser.open(url_apple)
-        return f"Pista localizada: '{cancion}' {f'de {artista}' if artista else ''}. Desplegando en el reproductor."
-    except Exception as e:
-        return f"Falla al localizar la pista: {str(e)}"
+        return f"Error de telemetría: {str(e)}"
+    
